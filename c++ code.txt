@@ -1,0 +1,112 @@
+#include <BluetoothSerial.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128  // OLED display width
+#define SCREEN_HEIGHT 64  // OLED display height
+#define OLED_RESET    -1  // Reset pin # (or -1 if unused)
+
+#define OLED_I2C_ADDRESS 0x3C  // Define the I2C address (common for 128x64 OLED screens)
+
+// RGB LED Pins (use PWM-capable pins)
+#define RED_PIN   16
+#define GREEN_PIN 17
+#define BLUE_PIN  18
+
+BluetoothSerial ESP_BT;  // Bluetooth Serial object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Old English conversion function (simple for illustration)
+String convertToOldEnglish(String input) {
+  // Simple replacements - you can expand this based on your needs
+  input.replace("you", "thee");
+  input.replace("are", "art");
+  input.replace("hello", "hail");
+  input.replace("my", "mine");
+  input.replace("good", "goodly");
+  // Add more conversion logic here as necessary
+  return input;
+}
+
+void setup() {
+  // Start Bluetooth Serial communication
+  Serial.begin(115200);  
+  ESP_BT.begin("ESP32_OLED_BT");  // Name the Bluetooth device
+  Serial.println("Bluetooth Started");
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);  // Don't continue if the OLED fails to initialize
+  }
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print("ESP32 Bluetooth");
+  display.display();
+  delay(2000); // Show startup message
+
+  // Initialize RGB LED pins as output
+  pinMode(RED_PIN, OUTPUT);
+  pinMode(GREEN_PIN, OUTPUT);
+  pinMode(BLUE_PIN, OUTPUT);
+
+  // Set initial RGB to off (0, 0, 0)
+  analogWrite(RED_PIN, 0);
+  analogWrite(GREEN_PIN, 0);
+  analogWrite(BLUE_PIN, 0);
+}
+
+void loop() {
+  // Check if data is available from Bluetooth
+  if (ESP_BT.available()) {
+    String receivedText = ESP_BT.readString();  // Read the incoming Bluetooth data
+    Serial.println("Received: " + receivedText);
+
+    // Check for RGB control command (format: "RGB r,g,b")
+    if (receivedText.startsWith("RGB")) {
+      int red, green, blue;
+      sscanf(receivedText.c_str(), "RGB %d,%d,%d", &red, &green, &blue);
+      
+      // Ensure the values are within the valid range (0-255)
+      red = constrain(red, 0, 255);
+      green = constrain(green, 0, 255);
+      blue = constrain(blue, 0, 255);
+      
+      // Update the RGB LED with the specified values
+      analogWrite(RED_PIN, red);
+      analogWrite(GREEN_PIN, green);
+      analogWrite(BLUE_PIN, blue);
+
+      // Display the RGB values on the OLED
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.print("RGB Control:");
+      display.setCursor(0, 10);
+      display.print("R: ");
+      display.print(red);
+      display.setCursor(0, 20);
+      display.print("G: ");
+      display.print(green);
+      display.setCursor(0, 30);
+      display.print("B: ");
+      display.print(blue);
+      display.display();
+    }
+    // If the received text is a speech command, convert it to Old English
+    else {
+      String oldEnglishText = convertToOldEnglish(receivedText);
+      Serial.println("Converted to Old English: " + oldEnglishText);
+
+      // Display the converted text on the OLED screen
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.print("Converted Text:");
+      display.setCursor(0, 10);
+      display.print(oldEnglishText);
+      display.display();
+    }
+  }
+}
